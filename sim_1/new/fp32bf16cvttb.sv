@@ -1,49 +1,23 @@
 `timescale 1ns / 1ps
-//////////////////////////////////////////////////////////////////////////////////
-// Company: 
-// Engineer: 
-// 
-// Create Date: 11/27/2023 02:28:18 PM
-// Design Name: 
-// Module Name: fp32bf16cvttb
-// Project Name: 
-// Target Devices: 
-// Tool Versions: 
-// Description: 
-// 
-// Dependencies: 
-// 
-// Revision:
-// Revision 0.01 - File Created
-// Additional Comments:
-// 
-//////////////////////////////////////////////////////////////////////////////////
-
-
-`timescale 1ns / 1ps
 
 module tb_fp32_to_bf16();
 
     // Testbench Signals
     reg clk;
     reg reset;
+    reg instruction_enable; // Added enable signal
     reg [31:0] operand_a;
     wire [15:0] result;
-    wire invalid;
-    wire overflow;
-    wire underflow;
-    wire inexact;
+    wire [3:0] fpcsr; // Updated for fpcsr register
 
     // Instantiate the Unit Under Test (UUT)
     fp32_to_bf16 uut (
         .clk(clk),
         .reset(reset),
+        .instruction_enable(instruction_enable), // Added enable signal
         .operand_a(operand_a),
         .result(result),
-        .invalid(invalid),
-        .overflow(overflow),
-        .underflow(underflow),
-        .inexact(inexact)
+        .fpcsr(fpcsr) // Updated for fpcsr register
     );
 
     // Clock generation
@@ -56,6 +30,7 @@ module tb_fp32_to_bf16();
         // Reset
         reset = 1; #20;
         reset = 0; #20;
+        instruction_enable = 1; // Enable the instruction
 
         // Test 1: Normal number conversion
         operand_a = 32'h40490FDB; // PI in FP32
@@ -97,10 +72,8 @@ module tb_fp32_to_bf16();
     task check_result;
         input [128*8:1] test_name;
         begin
-            $display("%s: Result = %h, Invalid = %b, Overflow = %b, Underflow = %b, Inexact = %b",
-                     test_name, result, invalid, overflow, underflow, inexact);
+            $display("%s: Result = %h, FPCSR = %b", test_name, result, fpcsr);
         end
     endtask
 
 endmodule
-

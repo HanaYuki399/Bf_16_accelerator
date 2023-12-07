@@ -18,39 +18,35 @@
 // Additional Comments:
 // 
 //////////////////////////////////////////////////////////////////////////////////
-
 `timescale 1ns / 1ps
 
-module tb_bf16_to_fp32;
+module tb_bf16_to_fp32();
 
     // Inputs
     reg clk;
     reg reset;
+    reg instruction_enable;
     reg [15:0] operand_a;
 
     // Outputs
     wire [31:0] result;
-    wire invalid;
-    wire overflow;
-    wire underflow;
-    wire inexact;
+    wire [3:0] fpcsr; // Updated for fpcsr register
 
     // Instantiate the Unit Under Test (UUT)
     bf16_to_fp32 uut (
         .clk(clk),
         .reset(reset),
+        .instruction_enable(instruction_enable), // Added enable signal
         .operand_a(operand_a),
         .result(result),
-        .invalid(invalid),
-        .overflow(overflow),
-        .underflow(underflow),
-        .inexact(inexact)
+        .fpcsr(fpcsr) // Updated for fpcsr register
     );
 
     initial begin
         // Initialize Inputs
         clk = 0;
         reset = 1;
+        instruction_enable = 1; // Enable the instruction
         operand_a = 0;
 
         // Wait 100 ns for global reset
