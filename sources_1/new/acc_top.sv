@@ -52,16 +52,16 @@ bf16_conversion bf16_fp32_conversion_inst (
     );
 
 // Instantiate the max/min module
-//bf16_minmax maxmin_module (
-//    .clk(clk),
-//    .reset(reset),
-//    .enable(maxmin_enable),
-//    .operand_a(operand_a),
-//    .operand_b(operand_b),
-//    .operation(operation),
-//    .result(maxmin_result),
-//    .fpcsr(maxmin_fpcsr)
-//);
+    bf16_minmax maxmin_module (
+    .clk(clk),
+    .reset(reset),
+    .enable(maxmin_enable),
+    .operand_a(operand_a),
+    .operand_b(operand_b),
+    .operation(operation),
+    .result(maxmin_result),
+    .fpcsr(maxmin_fpcsr)
+);
 
 //// Instantiate the add/mul module
 //bf16_addmul addmul_module (

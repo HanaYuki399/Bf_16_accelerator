@@ -65,7 +65,7 @@ module fp32_to_bf16(
         sticky_bit = |man[13:0]; // OR all truncated bits for sticky bit
 
         // Check for rounding using RNE
-        round_up = guard_bit & (sticky_bit | guard_bit | new_man[0]);
+        round_up = guard_bit & (sticky_bit | rounding_bit | new_man[0]);
 
         new_exp = exp; // Adjust exponent from FP32 to BF16 bias
         new_man = man[22:16]; // Truncate mantissa to BF16 precision
