@@ -29,9 +29,9 @@ module bf16_fma(
     logic [TOTAL_MAN_BITS-1:0] aligned_product_mantissa; // Extended product mantissa
     logic [2*MAN_BITS+1:0] product_mantissa;
     logic [TOTAL_MAN_BITS-1:0] aligned_addend_mantissa;
-    logic [TOTAL_MAN_BITS:0] sum_mantissa; //In case off overflow
-    logic [TOTAL_MAN_BITS+1:0] aligned_sum_mantissa; //for ground bit
-    logic [MAN_BITS:0] result_mantissa; //MSB for overflow
+    logic [TOTAL_MAN_BITS:0] sum_mantissa; // In case of overflow
+    logic [TOTAL_MAN_BITS+1:0] aligned_sum_mantissa; // For ground bit
+    logic [MAN_BITS:0] result_mantissa; // MSB for overflow
     logic [EXP_BITS:0] product_exp, aligned_addend_exp, sum_exp;
     logic product_sign, sum_sign;
 
@@ -39,24 +39,59 @@ module bf16_fma(
     logic round_bit, sticky_bit;
     reg [4:0] i;
 
+    // Special case handling
+    logic is_nan_a, is_nan_b, is_nan_c;
+    logic is_inf_a, is_inf_b, is_inf_c;
+    logic is_zero_a, is_zero_b, is_zero_c;
+    logic result_is_special;
+
     always @(posedge clk or posedge reset) begin
-    
-    if (reset) begin
-            result = 16'b0;
-            fpcsr = 4'b0000;
-        end
-        // Decompose operands
-        else if (enable) begin
-        exp_a = operand_a[14:7];
-        exp_b = operand_b[14:7];
-        exp_c = operand_c[14:7];
-        man_a = {1'b1, operand_a[6:0]}; // Include implicit bit
-        man_b = {1'b1, operand_b[6:0]};
-        man_c = operand_c[6:0];
-        sign_a = operand_a[15];
-        sign_b = operand_b[15];
-        sign_c = operand_c[15];
-        i = 0;
+        if (reset) begin
+            result <= 16'b0;
+            fpcsr <= 4'b0000;
+        end else if (enable) begin
+            exp_a <= operand_a[14:7];
+            exp_b <= operand_b[14:7];
+            exp_c <= operand_c[14:7];
+            man_a <= {1'b1, operand_a[6:0]}; // Include implicit bit
+            man_b <= {1'b1, operand_b[6:0]};
+            man_c <= operand_c[6:0];
+            sign_a <= operand_a[15];
+            sign_b <= operand_b[15];
+            sign_c <= operand_c[15];
+            i <= 0;
+
+            // Detect special cases
+            is_nan_a = exp_a == 8'hFF && man_a != 0;
+            is_nan_b = exp_b == 8'hFF && man_b != 0;
+            is_nan_c = exp_c == 8'hFF && man_c != 0;
+
+            is_inf_a = exp_a == 8'hFF && man_a == 0;
+            is_inf_b = exp_b == 8'hFF && man_b == 0;
+            is_inf_c = exp_c == 8'hFF && man_c == 0;
+
+            is_zero_a = exp_a == 0 && man_a == 0;
+            is_zero_b = exp_b == 0 && man_b == 0;
+            is_zero_c = exp_c == 0 && man_c == 0;
+
+            // Determine if the result should be special (NaN or Infinity)
+            result_is_special = is_nan_a || is_nan_b || is_nan_c ||
+                                (is_inf_a && is_zero_b) || (is_inf_b && is_zero_a) ||
+                                ((is_inf_a || is_inf_b) && is_inf_c && effective_subtraction);
+
+            if (result_is_special) begin
+                if (is_nan_a || is_nan_b || is_nan_c) begin
+                    result <= 16'h7FC0; // Canonical qNaN for bfloat16
+                    fpcsr[3] <= 1; // NV flag for NaN
+                end else if ((is_inf_a && is_zero_b) || (is_inf_b && is_zero_a) || ((is_inf_a || is_inf_b) && is_inf_c && effective_subtraction)) begin
+                    result <= 16'h7FC0; // Canonical qNaN for bfloat16
+                    fpcsr[3] <= 1; // NV flag for invalid operation
+                end else if (is_inf_a || is_inf_b || is_inf_c) begin
+                    result <= {1'b0, 8'hFF, 7'b0}; // Infinity
+                end
+            end
+        else begin
+                // FMA computation logic
 
         // Adjust operands based on the operation
         case (operation)
@@ -85,7 +120,20 @@ module bf16_fma(
             end
             default: ; // Other operations: no change
         endcase
-
+        if (is_zero_a || is_zero_b) begin
+            result = operand_c;  
+        end
+        else begin
+        if (operand_a == 16'h3f80) //operand_a is 1
+        begin
+            aligned_product_mantissa = {man_b,{(TOTAL_MAN_BITS - MAN_BITS - 2){1'b0}}};
+        end
+        else if (operand_b == 16'h3f80) //operand_b is 1
+        begin
+            aligned_product_mantissa = {man_a,{(TOTAL_MAN_BITS - MAN_BITS - 2){1'b0}}};
+        end
+            
+        else begin    
         // Calculate product of a and b with extended mantissa
         product_mantissa = man_a * man_b;
         product_exp = exp_a + exp_b - BIAS;
@@ -96,9 +144,12 @@ module bf16_fma(
             product_mantissa = product_mantissa << 1;
         end
         aligned_product_mantissa = {product_mantissa, 16'b0};
+        end 
         //product_exp = exp_a + exp_b - BIAS;
         product_sign = sign_a ^ sign_b;
-
+        if (is_zero_c) begin
+            result = {product_sign,product_exp[7:0],product_mantissa[TOTAL_MAN_BITS:TOTAL_MAN_BITS-6]};
+        end
         // Align addend (operand_c) with product
         aligned_addend_exp = exp_c;
         aligned_addend_mantissa = {1'b1, man_c, {(TOTAL_MAN_BITS - MAN_BITS - 1){1'b0}}}; // Extend addend mantissa
@@ -183,4 +234,9 @@ module bf16_fma(
         //invalid = 0; // No invalid operation in simple FMA
     end
     end
+    end
+    end
+
+    
+    
 endmodule

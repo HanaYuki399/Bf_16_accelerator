@@ -29,26 +29,25 @@ module tb_bf16_fma;
     reg [15:0] operand_a;
     reg [15:0] operand_b;
     reg [15:0] operand_c;
+    reg enable;
+    reg [3:0] operation;
 
     // Outputs
     wire [15:0] result;
-    wire invalid;
-    wire overflow;
-    wire underflow;
-    wire inexact;
+    wire [3:0] fpcsr;
+    
 
     // Instantiate the Unit Under Test (UUT)
     bf16_fma uut (
         .clk(clk),
         .reset(reset),
+        .enable(enable),
         .operand_a(operand_a),
         .operand_b(operand_b),
         .operand_c(operand_c),
+        .operation(operation),
         .result(result),
-        .invalid(invalid),
-        .overflow(overflow),
-        .underflow(underflow),
-        .inexact(inexact)
+        .fpcsr(fpcsr)
     );
 
     // Clock generation
@@ -65,6 +64,8 @@ module tb_bf16_fma;
         // Wait for global reset
         #100;
         reset = 0;
+        enable = 1;
+        operation = 0111;
 
         // Test case 1: Normal operation
         operand_a = 16'h3f80; // 1.0
