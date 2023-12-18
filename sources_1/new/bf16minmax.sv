@@ -67,15 +67,15 @@ module bf16_minmax(
         if (operand_a_nan && operand_b_nan) begin
             // Both operands are NaN, return canonical NaN
             result = 16'h7FC0; // Canonical NaN in BF16
-            fpcsr[2] = 1; // Invalid flag set
+            fpcsr[3] = 1; // Invalid flag set
         end else if (operand_a_nan) begin
             // Operand A is NaN, return B
             result = operand_b;
-            fpcsr[2] = 1; // Invalid flag set
+            fpcsr[3] = 1; // Invalid flag set
         end else if (operand_b_nan) begin
             // Operand B is NaN, return A
             result = operand_a;
-            fpcsr[2] = 1; // Invalid flag set
+            fpcsr[3] = 1; // Invalid flag set
         end else if (select_a) begin
             // Select A for min or max based on comparison
             result = operand_a;

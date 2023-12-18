@@ -27,6 +27,7 @@ module tb_bf16_minmax;
     reg reset;
     reg [15:0] operand_a;
     reg [15:0] operand_b;
+    reg [15:0] operand_c;
     reg [3:0] operation; // Operation select: 4'b0010 for min, 4'b0011 for max
     reg enable;
 
@@ -42,7 +43,7 @@ module tb_bf16_minmax;
         .enable(enable), // Always enable the accelerator for testing
         .operand_a(operand_a),
         .operand_b(operand_b), // Not used in conversion tests
-        .operand_c(32'h0), // Not used in conversion tests
+        .operand_c(operand_c), // Not used in conversion tests
         .operation(operation),
         .result(result),
         .fpcsr(fpcsr),
@@ -59,6 +60,7 @@ module tb_bf16_minmax;
         reset = 1;
         operand_a = 0;
         operand_b = 0;
+        operand_c = 0;
         operation = 0;
 
         // Wait for global reset
@@ -71,6 +73,18 @@ module tb_bf16_minmax;
         operand_b = 16'h3C00; // 1.0
         operation = 4'b0010; // min
         #10;
+        
+        operand_a = 16'h4000; // 2.0
+        operand_b = 16'h3f90; // 1.0
+        operand_c = 16'h40a0;
+        operation = 4'b0111; // fma
+        #10 
+        
+        operand_a = 16'h4000; // 2.0
+        operand_b = 16'h4080; // 1.0
+        operand_c = 16'h40c0;
+        operation = 4'b0111; // fma
+        #10
 
         // Test case 2: Special values (Infinity and NaN)
         operand_a = 16'h7C00; // Infinity
@@ -78,7 +92,7 @@ module tb_bf16_minmax;
         operation = 4'b0011; // max
         #10;
 
-        // Test case 3: Subnormal numbers
+         //Test case 3: Subnormal numbers
         operand_a = 16'h0380; // Small subnormal
         operand_b = 16'h0400; // Slightly larger subnormal
         operation = 4'b0010; // min
@@ -96,11 +110,11 @@ module tb_bf16_minmax;
         operation = 4'b0011; // max
         #10;
 
-        // Test case 6: Sign difference
-        operand_a = 16'hC000; // -2.0
-        operand_b = 16'h4000; // 2.0
-        operation = 4'b0010; // min
-        #10;
+//        // Test case 6: Sign difference
+//        operand_a = 16'hC000; // -2.0
+//        operand_b = 16'h4000; // 2.0
+//        operation = 4'b0010; // min
+//        #10;
 
         // Add more test cases as needed
 

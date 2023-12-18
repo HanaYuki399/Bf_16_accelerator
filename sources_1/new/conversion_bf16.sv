@@ -70,7 +70,7 @@ module bf16_conversion(
     );
 
     // Logic to select the appropriate output based on operation
-    always @(posedge clk or posedge reset) begin
+    always @(posedge clk ) begin
         if(enable)begin
         
         

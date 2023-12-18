@@ -63,21 +63,21 @@ bf16_conversion bf16_fp32_conversion_inst (
     .fpcsr(maxmin_fpcsr)
 );
 
-//// Instantiate the add/mul module
-//bf16_addmul addmul_module (
-//    .clk(clk),
-//    .reset(reset),
-//    .enable(addmul_enable),
-//    .operand_a(operand_a),
-//    .operand_b(operand_b),
-//    .operand_c(operand_c),
-//    .operation(operation),
-//    .result(addmul_result),
-//    .fpcsr(addmul_fpcsr)
-//);
+// Instantiate the add/mul module
+bf16_fma addmul_module (
+    .clk(clk),
+    .reset(reset),
+    .enable(addmul_enable),
+    .operand_a(operand_a),
+    .operand_b(operand_b),
+    .operand_c(operand_c),
+    .operation(operation),
+    .result(addmul_result),
+    .fpcsr(addmul_fpcsr)
+);
 
 // Decode logic
-always @(posedge clk or posedge reset) begin
+always @(*) begin
     // Default disable all units
     if (reset) begin
 
@@ -87,31 +87,32 @@ always @(posedge clk or posedge reset) begin
     end
 
      else if (enable) begin
-        case (operation)
-            // Conversion Operations
-            4'b0000: conv_enable = 1; // BF16 to FP32 Conversion
-            4'b0001: conv_enable = 1; // FP32 to BF16 Conversion
+
+//            // Conversion Operations
+//            4'b0000: conv_enable = 1; // BF16 to FP32 Conversion
+//            4'b0001: conv_enable = 1; // FP32 to BF16 Conversion
             
-            // Max/Min Operations
-            4'b0010: maxmin_enable = 1; // Max
-            4'b0011: maxmin_enable = 1; // Min
+//            // Max/Min Operations
+//            4'b0010: maxmin_enable = 1; // Max
+//            4'b0011: maxmin_enable = 1; // Min
             
-            // Add/Mul Operations
-            4'b0100: addmul_enable = 1; // Add
-            4'b0101: addmul_enable = 1; // Mul
-            4'b0110: addmul_enable = 1; // Sub
-            4'b0111: addmul_enable = 1; // Fused Multiply-Add (FMADD)
-            4'b1000: addmul_enable = 1; // Fused Multiply-Subtract (FMSUB)
-            4'b1001: addmul_enable = 1; // Fused Negative Multiply-Add (FMNADD)
-            4'b1010: addmul_enable = 1; // Fused Negative Multiply-Subtract (FMNSUB)
-            default: ; // Handle unknown operation
-        endcase
+//            // Add/Mul Operations
+//            4'b0100: addmul_enable = 1; // Add
+//            4'b0101: addmul_enable = 1; // Mul
+//            4'b0110: addmul_enable = 1; // Sub
+//            4'b0111: addmul_enable = 1; // Fused Multiply-Add (FMADD)
+//            4'b1000: addmul_enable = 1; // Fused Multiply-Subtract (FMSUB)
+//            4'b1001: addmul_enable = 1; // Fused Negative Multiply-Add (FMNADD)
+//            4'b1010: addmul_enable = 1; // Fused Negative Multiply-Subtract (FMNSUB)
+              conv_enable <= !operation[3] & !operation[2] & !operation[1];
+              maxmin_enable <= !operation[3] & !operation[2] & operation[1];
+              addmul_enable <= operation[3] | operation[2];
         
 
 end
 end
 // Result and FPCSR aggregation
-always_comb begin
+always @(posedge clk) begin
     valid = enable && (conv_enable || maxmin_enable || addmul_enable);
 
     if (conv_enable) begin

@@ -14,7 +14,7 @@ module fp32_to_bf16(
     logic operand_a_inf, operand_a_zero, operand_a_nan, operand_a_subnormal;
 
     // Only execute logic if enabled for this instruction
-    always_ff @(posedge clk or posedge reset) begin
+    always @(posedge clk or posedge reset) begin
         if (reset) begin
             result <= 0;
             fpcsr <= 0;
