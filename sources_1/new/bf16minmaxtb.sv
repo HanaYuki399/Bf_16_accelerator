@@ -37,17 +37,27 @@ module tb_bf16_minmax;
 
     // Instantiate the Unit Under Test (UUT)
  
-    bf16_accelerator_top uut (
+//    bf16_accelerator_top uut (
+//        .clk(clk),
+//        .reset(reset),
+//        .enable(enable), // Always enable the accelerator for testing
+//        .operand_a(operand_a),
+//        .operand_b(operand_b), // Not used in conversion tests
+//        .operand_c(operand_c), // Not used in conversion tests
+//        .operation(operation),
+//        .result(result),
+//        .fpcsr(fpcsr),
+//        .valid() // Ignored in this testbench
+//    );
+    bf16_minmax uut (
         .clk(clk),
         .reset(reset),
         .enable(enable), // Always enable the accelerator for testing
         .operand_a(operand_a),
         .operand_b(operand_b), // Not used in conversion tests
-        .operand_c(operand_c), // Not used in conversion tests
         .operation(operation),
         .result(result),
-        .fpcsr(fpcsr),
-        .valid() // Ignored in this testbench
+        .fpcsr(fpcsr)
     );
 
 
@@ -67,6 +77,7 @@ module tb_bf16_minmax;
         #100;
         reset = 0;
         enable = 1;
+        #10
 
         // Test case 1: Normal numbers
         operand_a = 16'h4000; // 2.0
@@ -74,21 +85,21 @@ module tb_bf16_minmax;
         operation = 4'b0010; // min
         #10;
         
-        operand_a = 16'h4000; // 2.0
-        operand_b = 16'h3f90; // 1.0
-        operand_c = 16'h40a0;
-        operation = 4'b0111; // fma
-        #10 
+//        operand_a = 16'h4000; // 2.0
+//        operand_b = 16'h3f90; // 1.0
+//        operand_c = 16'h40a0;
+//        operation = 4'b0111; // fma
+//        #10 
         
-        operand_a = 16'h4000; // 2.0
-        operand_b = 16'h4080; // 1.0
-        operand_c = 16'h40c0;
-        operation = 4'b0111; // fma
-        #10
+//        operand_a = 16'h4000; // 2.0
+//        operand_b = 16'h4080; // 1.0
+//        operand_c = 16'h40c0;
+//        operation = 4'b0111; // fma
+//        #10
 
         // Test case 2: Special values (Infinity and NaN)
         operand_a = 16'h7C00; // Infinity
-        operand_b = 16'h7E00; // NaN
+        operand_b = 16'h7F81; // NaN
         operation = 4'b0011; // max
         #10;
 

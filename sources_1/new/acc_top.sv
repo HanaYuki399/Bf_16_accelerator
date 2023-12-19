@@ -29,7 +29,7 @@ module bf16_accelerator_top(
     input logic [31:0] operand_c, // Third operand for FMA operations
     input logic [3:0] operation,  // Operation type
     output logic [31:0] result,   // Result of the operation
-    output logic [31:0] fpcsr,    // Floating-point control and status register
+    output logic [3:0] fpcsr,    // Floating-point control and status register
     output logic valid            // Output valid signal
 );
 
@@ -77,7 +77,7 @@ bf16_fma addmul_module (
 );
 
 // Decode logic
-always @(*) begin
+always @(posedge clk) begin
     // Default disable all units
     if (reset) begin
 

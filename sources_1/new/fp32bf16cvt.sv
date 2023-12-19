@@ -20,6 +20,7 @@ module fp32_to_bf16(
             fpcsr <= 0;
         end else if (instruction_enable) begin
             // Decompose operand
+            fpcsr = 0;
             operand_a_sign = operand_a[31];
             operand_a_exp = {1'b0, operand_a[30:23]};
             operand_a_man = operand_a[22:0];
@@ -44,9 +45,9 @@ module fp32_to_bf16(
 
           // Update fpcsr
             fpcsr[3] <= operand_a_nan; // Invalid operation flag
-            fpcsr[2] <= 0;             // Overflow flag
-            fpcsr[1] <= 0;             // Underflow flag
-            fpcsr[0] <= 0;             // Inexact flag
+//            fpcsr[2] <= 0;             // Overflow flag
+//            fpcsr[1] <= 0;             // Underflow flag
+//            fpcsr[0] <= 0;             // Inexact flag
         end
     end
 
@@ -82,8 +83,8 @@ module fp32_to_bf16(
         end
 
         // Check for exponent overflow or underflow
-        if (new_exp >= 9'h0FF) begin
-            new_exp = 9'h0FF; // Cap at largest normal value
+        if (new_exp >= 8'hFF) begin
+            fpcsr[2] = 1'b1;
         end else if (new_exp <= 0) begin
             new_exp = 0; // Subnormals and zero
             new_man = 0;

@@ -60,12 +60,14 @@ module tb_bf16_fma;
         operand_a = 0;
         operand_b = 0;
         operand_c = 0;
+        operation = 0111;
 
         // Wait for global reset
         #100;
         reset = 0;
         enable = 1;
-        operation = 0111;
+        
+        #10
 
         // Test case 1: Normal operation
         operand_a = 16'h3f80; // 1.0
