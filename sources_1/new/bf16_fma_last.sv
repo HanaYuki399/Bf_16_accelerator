@@ -1,8 +1,7 @@
 `timescale 1ns / 1ps
 
-module bf16_fma2(
+module bf16_fma(
     input logic clk,
-    
     input logic reset,
     input logic enable,
     input logic [15:0] operand_a,
@@ -35,15 +34,10 @@ module bf16_fma2(
     logic [MAN_BITS:0] result_mantissa; // MSB for overflow
     logic [EXP_BITS:0] product_exp, aligned_addend_exp, sum_exp;
     logic product_sign, sum_sign;
-    logic [15:0] result_special;
-    logic [15:0] result_zero_ab;
-    logic [15:0] result_zero_c;
-    logic [15:0] result_norm;
 
     // Rounding variables
-    logic guard_bit,round_bit, sticky_bit;
-    integer i = 0;
-    integer loop_max =32;
+    logic round_bit, sticky_bit;
+    reg [4:0] i;
 
     // Special case handling
     logic is_nan_a, is_nan_b, is_nan_c;
@@ -52,20 +46,34 @@ module bf16_fma2(
     logic is_zero_a, is_zero_b, is_zero_c;
     logic result_is_special;
 
-    always @(posedge clk) begin
+    always @(posedge clk or posedge reset) begin
         if (reset) begin
-            result = 16'b0;
-            fpcsr = 4'b0000;
+            result <= 16'b0;
+            fpcsr <= 4'b0000;
         end else if (enable) begin
-            exp_a = operand_a[14:7];
-            exp_b = operand_b[14:7];
-            exp_c = operand_c[14:7];
-            man_a = {1'b1, operand_a[6:0]}; // Include implicit bit
-            man_b = {1'b1, operand_b[6:0]};
-            man_c = operand_c[6:0];
-            sign_a = operand_a[15];
-            sign_b = operand_b[15];
-            sign_c = operand_c[15];
+            exp_a <= operand_a[14:7];
+            exp_b <= operand_b[14:7];
+            exp_c <= operand_c[14:7];
+            man_a <= {1'b1, operand_a[6:0]}; // Include implicit bit
+            man_b <= {1'b1, operand_b[6:0]};
+            man_c <= operand_c[6:0];
+            sign_a <= operand_a[15];
+            sign_b <= operand_b[15];
+            sign_c <= operand_c[15];
+            i <= 0;
+
+            // Detect special cases
+            is_nan_a = exp_a == 8'hFF && man_a != 0;
+            is_nan_b = exp_b == 8'hFF && man_b != 0;
+            is_nan_c = exp_c == 8'hFF && man_c != 0;
+
+            is_inf_a = exp_a == 8'hFF && man_a == 0;
+            is_inf_b = exp_b == 8'hFF && man_b == 0;
+            is_inf_c = exp_c == 8'hFF && man_c == 0;
+
+            is_zero_a = exp_a == 0 && man_a == 0;
+            is_zero_b = exp_b == 0 && man_b == 0;
+            is_zero_c = exp_c == 0 && man_c == 0;
             
             is_sub_a = exp_a == 0 && man_a[6:0] != 0;
             is_sub_b = exp_b == 0 && man_b[6:0] != 0;
@@ -77,7 +85,28 @@ module bf16_fma2(
             if(is_sub_b) begin
                 man_b = 0;
             end
-            case (operation)
+
+            // Determine if the result should be special (NaN or Infinity)
+            result_is_special = is_nan_a || is_nan_b || is_nan_c ||
+                                (is_inf_a && is_zero_b) || (is_inf_b && is_zero_a) ||
+                                ((is_inf_a || is_inf_b) && is_inf_c && effective_subtraction);
+
+            if (result_is_special) begin
+                if (is_nan_a || is_nan_b || is_nan_c) begin
+                    result <= 16'h7FC0; // Canonical qNaN for bfloat16
+                    fpcsr[3] <= 1; // NV flag for NaN
+                end else if ((is_inf_a && is_zero_b) || (is_inf_b && is_zero_a) || ((is_inf_a || is_inf_b) && is_inf_c && effective_subtraction)) begin
+                    result <= 16'h7FC0; // Canonical qNaN for bfloat16
+                    fpcsr[3] <= 1; // NV flag for invalid operation
+                end else if (is_inf_a || is_inf_b || is_inf_c) begin
+                    result <= {1'b0, 8'hFF, 7'b0}; // Infinity
+                end
+            end
+        else begin
+                // FMA computation logic
+
+        // Adjust operands based on the operation
+        case (operation)
             4'b0111: ; // FMADD: Do nothing
             4'b1000: sign_c = ~sign_c; // FMSUB: Invert sign of operand C
             4'b1010: sign_a = ~sign_a; // FNMSUB: Invert sign of operand A
@@ -103,87 +132,35 @@ module bf16_fma2(
             end
             default: ; // Other operations: no change
         endcase
-    end
-    end
-    
-    always @(posedge clk) begin
-            
-
-            // Detect special cases
-            is_nan_a = exp_a == 8'hFF && man_a[6:0] != 0;
-            is_nan_b = exp_b == 8'hFF && man_b[6:0] != 0;
-            is_nan_c = exp_c == 8'hFF && man_c[6:0] != 0;
-            
-            
-            
-
-            is_inf_a = exp_a == 8'hFF && man_a == 0;
-            is_inf_b = exp_b == 8'hFF && man_b == 0;
-            is_inf_c = exp_c == 8'hFF && man_c == 0;
-
-            is_zero_a = exp_a == 0 && man_a == 0;
-            is_zero_b = exp_b == 0 && man_b == 0;
-            is_zero_c = exp_c == 0 && man_c == 0;
-     end
-     always @(posedge clk) begin
-
-            // Determine if the result should be special (NaN or Infinity)
-            result_is_special = is_nan_a || is_nan_b || is_nan_c ||
-                                (is_inf_a && is_zero_b) || (is_inf_b && is_zero_a) ||
-                                ((is_inf_a || is_inf_b) && is_inf_c && effective_subtraction);
-
-            if (result_is_special) begin
-                if (is_nan_a || is_nan_b || is_nan_c) begin
-                    result_special <= 16'h7FC0; // Canonical qNaN for bfloat16
-                    //fpcsr[3] <= 1; // NV flag for NaN
-                end else if ((is_inf_a && is_zero_b) || (is_inf_b && is_zero_a) || ((is_inf_a || is_inf_b) && is_inf_c && effective_subtraction)) begin
-                    result_special <= 16'h7FC0; // Canonical qNaN for bfloat16
-                    //fpcsr[3] <= 1; // NV flag for invalid operation
-                end else if (is_inf_a || is_inf_b || is_inf_c) begin
-                    result_special <= {1'b0, 8'hFF, 7'b0}; // Infinity
-                end
-            end
-        end
-                // FMA computation logic
-    always @(posedge clk) begin
-        // Adjust operands based on the operation
-        
-        
         if (is_zero_a || is_zero_b) begin
-            result_zero_ab = operand_c;  
+            result = operand_c;  
         end
-//        else begin
-//        if (operand_a == 16'h3f80) //operand_a is 1
-//        begin
-//            aligned_product_mantissa = {man_b,{(TOTAL_MAN_BITS - MAN_BITS - 2){1'b0}}};
-//        end
-//        else if (operand_b == 16'h3f80) //operand_b is 1
-//        begin
-//            aligned_product_mantissa = {man_a,{(TOTAL_MAN_BITS - MAN_BITS - 2){1'b0}}};
-//        end
-//        end
+        else begin
+        if (operand_a == 16'h3f80) //operand_a is 1
+        begin
+            aligned_product_mantissa = {man_b,{(TOTAL_MAN_BITS - MAN_BITS - 2){1'b0}}};
         end
-  always @(posedge clk) begin    
+        else if (operand_b == 16'h3f80) //operand_b is 1
+        begin
+            aligned_product_mantissa = {man_a,{(TOTAL_MAN_BITS - MAN_BITS - 2){1'b0}}};
+        end
+            
+        else begin    
         // Calculate product of a and b with extended mantissa
         product_mantissa = man_a * man_b;
-        
-//        if (product_mantissa[2*MAN_BITS+1] == 1) begin
-//            product_exp = product_exp + 1;
-//        end
-//        else begin
-//            product_mantissa = product_mantissa << 1;
-//        end
-        
-        
+        product_exp = exp_a + exp_b - BIAS;
+        if (product_mantissa[2*MAN_BITS+1] == 1) begin
+            product_exp = product_exp + 1;
+        end
+        else begin
+            product_mantissa = product_mantissa << 1;
+        end
+        aligned_product_mantissa = {product_mantissa, 16'b0};
+        end 
         //product_exp = exp_a + exp_b - BIAS;
         product_sign = sign_a ^ sign_b;
-    end
-        
-    always @(posedge clk) begin
-     product_exp = exp_a + exp_b - BIAS;
-     aligned_product_mantissa = {product_mantissa, 16'b0};
         if (is_zero_c) begin
-            result_zero_c = {product_sign,product_exp[7:0],aligned_product_mantissa[TOTAL_MAN_BITS-1:TOTAL_MAN_BITS-7]};
+            result = {product_sign,product_exp[7:0],product_mantissa[TOTAL_MAN_BITS:TOTAL_MAN_BITS-6]};
         end
         // Align addend (operand_c) with product
         aligned_addend_exp = exp_c;
@@ -197,8 +174,6 @@ module bf16_fma2(
             aligned_product_mantissa = aligned_product_mantissa >> (aligned_addend_exp - product_exp);
             product_exp = aligned_addend_exp;
         end
-     end
-     always @(posedge clk) begin
 
         // Determine if operation is effectively a subtraction
         effective_subtraction = (product_sign != sign_c);
@@ -216,13 +191,9 @@ module bf16_fma2(
             sum_mantissa = aligned_product_mantissa + aligned_addend_mantissa;
             sum_sign = product_sign;
         end
-        
-     end
-        
-     always @(posedge clk) begin
-        // Normalize result
         sum_exp = product_exp;
         aligned_sum_mantissa =  {sum_mantissa, 1'b0};
+        // Normalize result
         if (aligned_sum_mantissa[TOTAL_MAN_BITS+1] == 1'b1) begin
             sum_exp = sum_exp + 1;
             aligned_sum_mantissa = aligned_sum_mantissa >> 1;
@@ -237,65 +208,47 @@ module bf16_fma2(
 //             sum_exp = sum_exp - 1;
 //             i = i + 1;
 //        end
-        for (i = 0; i < loop_max ; i = i + 1) begin
-        if (sum_exp > 0 && !aligned_sum_mantissa[TOTAL_MAN_BITS]) begin
+        for (i = 0; i < TOTAL_MAN_BITS && sum_exp > 0 && !aligned_sum_mantissa[TOTAL_MAN_BITS]; i = i + 1) begin
         aligned_sum_mantissa = aligned_sum_mantissa << 1;
         sum_exp = sum_exp - 1;
         end
-        
         end
-        end
-     
         
 //        while (sum_mantissa[TOTAL_MAN_BITS - 1] == 0 && sum_exp > 0 ) begin
 //            sum_mantissa = sum_mantissa << 1;
 //            sum_exp = sum_exp - 1;
 //        end
-    
+
         // Round (Round to Nearest, ties to Even)
-        guard_bit = aligned_sum_mantissa[TOTAL_MAN_BITS - 8];
-        round_bit = aligned_sum_mantissa[TOTAL_MAN_BITS - 9];
-        sticky_bit = |aligned_sum_mantissa[TOTAL_MAN_BITS - 10:0]; // OR all bits below round bit
+        round_bit = aligned_sum_mantissa[0];
+        sticky_bit = |aligned_sum_mantissa[TOTAL_MAN_BITS - 1:0]; // OR all bits below round bit
         result_mantissa = aligned_sum_mantissa[TOTAL_MAN_BITS - 1:TOTAL_MAN_BITS - 7];
-        if (guard_bit && (round_bit || sticky_bit)) begin
-            if (result_mantissa == 7'h7F) begin
-                sum_exp = sum_exp + 1; // Increment exponent due to mantissa overflow
-                result_mantissa = 0; // Reset mantissa to 0 because of overflow
-            end else begin
-                result_mantissa = result_mantissa + 1; // Increment mantissa
-            end 
+        if (round_bit && (aligned_sum_mantissa[MAN_BITS] || sticky_bit)) begin
+            result_mantissa = result_mantissa + 1;
+            if (result_mantissa[MAN_BITS]) begin               
+                sum_exp = sum_exp + 1;
+            end
         end
-     end
-     always @(posedge clk) begin
+
         // Handle overflow and underflow
-        if (sum_exp >= 8'hFF) begin
-            //fpcsr[2] = 1'b1;
-            result_norm = {sum_sign, 8'hFF, 7'h00}; // Infinity
+        if (sum_exp >= 2**EXP_BITS) begin
+            fpcsr[2] = 1'b1;
+            result = {sum_sign, 8'hFF, 7'h00}; // Infinity
         end else if (sum_exp <= 0) begin
-            //fpcsr[1] = 1'b1;
-            result_norm = {sum_sign, 8'h00, 7'h00}; // Zero (subnormals flushed to zero)
+            fpcsr[1] = 1'b1;
+            result = {sum_sign, 8'h00, 7'h00}; // Zero (subnormals flushed to zero)
         end else begin
-            result_norm = {sum_sign, sum_exp[7:0], result_mantissa[6:0]};
+            result = {sum_sign, sum_exp[7:0], result_mantissa[6:0]};
         end
 
         // Set inexact flag if any of the lower bits were non-zero
-        //fpcsr[0] = round_bit || sticky_bit;
+        fpcsr[0] = round_bit || sticky_bit;
         //invalid = 0; // No invalid operation in simple FMA
-     end
-     always @(posedge clk) begin
-        if (result_is_special) begin
-        result = result_special;
-        end
-        else if (is_zero_a || is_zero_b) begin
-        result = result_zero_ab;
-        end
-        else if (is_zero_c) begin
-        result = result_zero_c;
-        end
-        else begin
-        result = result_norm;
-        end
-      end
+    end
+    end
+    end
+    end
+
     
     
 endmodule
